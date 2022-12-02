@@ -10,12 +10,12 @@ import com.example.caderno.dataprovider.repository.TagRepository;
 import com.example.caderno.exception.NotFoundException;
 import com.example.caderno.exception.ServerSideException;
 import com.example.caderno.padroes.DefaultResponse;
+import com.example.caderno.service.AnotacaoService;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.rmi.server.ServerCloneException;
-import java.util.ArrayList;
 import java.util.List;
 
 // locahost:8080/nota
@@ -24,11 +24,13 @@ import java.util.List;
 public class AnotacaoController {
 
     private final AnotacaoRepository anotacaoRepository;
+    private final AnotacaoService anotacaoService;
     private final MateriaRepository materiaRepository;
     private final TagRepository tagRepository;
 
-    public AnotacaoController(AnotacaoRepository repository, MateriaRepository materiaRepository, TagRepository tagRepository) {
+    public AnotacaoController(AnotacaoRepository repository, AnotacaoService anotacaoService, MateriaRepository materiaRepository, TagRepository tagRepository) {
         this.anotacaoRepository = repository;
+        this.anotacaoService = anotacaoService;
         this.materiaRepository = materiaRepository;
         this.tagRepository = tagRepository;
     }
@@ -36,22 +38,7 @@ public class AnotacaoController {
     // GET /notas
     @GetMapping
     public ResponseEntity<List<AnotacaoResponse>> encontraNotas() {
-        List<AnotacaoEntity> entityList = anotacaoRepository.findAll();
-
-        List<AnotacaoResponse> responseList = new ArrayList<>();
-
-        for (AnotacaoEntity entity : entityList) { // transforma AnotacaoEntity em AnotacaoResponse
-            responseList.add(
-                    new AnotacaoResponse(
-                            entity.getId(),
-                            entity.getTitulo(),
-                            entity.getTexto(),
-                            new MateriaResponse(
-                                    entity.getMateriaEntity().getId(),
-                                    entity.getMateriaEntity().getNome()
-                            ))
-            );
-        }
+        List<AnotacaoResponse> responseList = anotacaoService.encontraTodasNotas();
 
         return ResponseEntity.ok(responseList);
 //        return new ResponseEntity(responseList,HttpStatus.OK);
@@ -59,44 +46,25 @@ public class AnotacaoController {
 
     // POST /notas/nota
     @PostMapping("/nota")
-    public ResponseEntity<DefaultResponse> salvarNota(@RequestBody AnotacaoRequest anotacaoRequest) { // corpo de requisição
-        try {
-            MateriaEntity materiaEntity = materiaRepository.findById(anotacaoRequest.getIdMateria()) // procura a matéria pelo id da requisição
-                    .orElseThrow(() -> new NotFoundException("Materia nao encontrada")); // caso a materia não exista o programa irá gerar um erro NotFoundException
+    public ResponseEntity<DefaultResponse> salvarNota(@Valid @RequestBody AnotacaoRequest anotacaoRequest) { // corpo de requisição
+        AnotacaoResponse response = anotacaoService.salvarNovaNota(anotacaoRequest);
 
-//        if (materiaEntity == null){
-//            throw new NotFoundException("Materia nao encontrada");
-//        }
+        return new ResponseEntity<>( //reposta padrão DefaultResponse
+                new DefaultResponse<AnotacaoResponse>(
+                        HttpStatus.CREATED.value(), // valor int do status Created
+                        response
+                ),
+                HttpStatus.CREATED
+        );
 
-            AnotacaoEntity entity = anotacaoRepository.save(new AnotacaoEntity(anotacaoRequest.getTitulo()
-                    , anotacaoRequest.getTexto()
-                    , materiaEntity
-            ));
-
-            return new ResponseEntity<>( //reposta padrão DefaultResponse
-                    new DefaultResponse<AnotacaoResponse>(
-                            HttpStatus.CREATED.value(), // valor int do status Created
-                            new AnotacaoResponse(
-                                    entity.getId(),
-                                    entity.getTitulo(),
-                                    entity.getTexto(),
-                                    new MateriaResponse(
-                                            entity.getMateriaEntity().getId(),
-                                            entity.getMateriaEntity().getNome()))
-                    ),
-                    HttpStatus.CREATED
-            );
-        }catch (NotFoundException e){
-            throw e; // passa adiante o erro NotFoundException
-        }catch (Exception e){
-            throw new ServerSideException("Erro ao salvar nota, mensagem localizada:" + e.getLocalizedMessage());
-            //Erro que é passado caso tenhamos qualquer Exception(que não seja NotFoundException) no programa acima
-        }
     }
 
     // GET /notas/nota?id=2 -> id = 2
     @GetMapping("/nota")
-    public ResponseEntity<AnotacaoResponse> encontrarNotaPorId(@RequestParam("id") Long id) {
+//    public ResponseEntity<AnotacaoResponse> encontrarNotaPorId(@RequestParam("id") Long id) {
+    // @Valida @NotNull torna o parametro obrigatorio
+//    required = false torna o parametro opcional
+    public ResponseEntity<AnotacaoResponse> encontrarNotaPorId(@RequestParam(value = "id", required = false) Long id) {
         AnotacaoEntity entity = anotacaoRepository.findById(id).get();
 
         return new ResponseEntity<AnotacaoResponse>(
@@ -107,7 +75,7 @@ public class AnotacaoController {
                         new MateriaResponse(
                                 entity.getMateriaEntity().getId(),
                                 entity.getMateriaEntity().getNome()
-                )),
+                        )),
                 HttpStatus.OK
         );
     }
@@ -176,4 +144,15 @@ public class AnotacaoController {
     }
 
     // tagEntity - id, tag, (notaEntity - id, titulo, nota, dataCriacao)
+
+
+    @GetMapping("/materia")
+    public ResponseEntity procurarNotaNomeMateria(
+            @RequestParam("nomeMateria") String nomeMateria
+    ) {
+        List<AnotacaoEntity> notaEntity = anotacaoRepository.findAllByMateriaNome(nomeMateria);
+
+        return ResponseEntity.ok(
+                notaEntity);
+    }
 }

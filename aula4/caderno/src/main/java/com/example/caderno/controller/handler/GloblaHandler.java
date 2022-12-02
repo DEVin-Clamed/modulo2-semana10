@@ -6,6 +6,7 @@ import com.example.caderno.exception.ServerSideException;
 import com.example.caderno.padroes.DefaultErrorResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 
@@ -44,4 +45,17 @@ public class GloblaHandler {
 
                 HttpStatus.INTERNAL_SERVER_ERROR);
     }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity tratarMethodArgumentNotValidException(Exception e){
+        return new ResponseEntity(
+                new DefaultErrorResponse(
+                        HttpStatus.BAD_REQUEST.value(),
+                        e.getMessage(),
+                        e.getCause()
+                ),
+
+                HttpStatus.BAD_REQUEST);
+    }
+
 }
